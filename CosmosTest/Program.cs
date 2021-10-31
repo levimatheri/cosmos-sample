@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Net;
 using Azure.Identity;
 using Microsoft.Azure.Cosmos;
+using LazyCache;
+using System.Threading;
 
 namespace CosmosTest
 {
@@ -16,7 +18,7 @@ namespace CosmosTest
         private static readonly string EndpointUri = ConfigurationManager.AppSettings["EndPointUri"];
 
         // The primary key for the Azure Cosmos account.
-        private static readonly string PrimaryKey = ConfigurationManager.AppSettings["PrimaryKey"];
+        //private static readonly string PrimaryKey = ConfigurationManager.AppSettings["PrimaryKey"];
 
         // The Cosmos client instance
         private CosmosClient cosmosClient;
@@ -30,14 +32,49 @@ namespace CosmosTest
         // The name of the database and container we will create
         private string databaseId = "FamilyDatabase";
         private string containerId = "FamilyContainer";
+        private IAppCache cache;
+
+        public Program()
+        {
+            cache = new CachingService();
+            cache.DefaultCachePolicy.DefaultCacheDurationSeconds = 60 * 60 * 2;
+            this.cache.Remove("my-cosmos-client");
+            //this.cosmosClient = this.cache.GetOrAdd("my-cosmos-client", () => new CosmosClient(EndpointUri,
+            //        new DefaultAzureCredential(), new CosmosClientOptions
+            //        {
+            //            TokenCredentialBackgroundRefreshInterval = TimeSpan.FromSeconds(6)
+            //        }));
+
+            //this.cosmosClient = new CosmosClient(EndpointUri,
+            //        new DefaultAzureCredential(), new CosmosClientOptions
+            //        {
+            //            TokenCredentialBackgroundRefreshInterval = TimeSpan.FromSeconds(6)
+            //        });
+
+            //var myCosmosClient = new CosmosClient(EndpointUri,
+            //        new DefaultAzureCredential(), new CosmosClientOptions
+            //        {
+            //            TokenCredentialBackgroundRefreshInterval = TimeSpan.FromSeconds(5)
+            //        });
+            //this.cache.GetOrAdd("my-cosmos-client", () => myCosmosClient);
+            //  this.cosmosClient = new CosmosClient(EndpointUri, PrimaryKey);
+            //this.cosmosClient = new CosmosClient(EndpointUri,
+            //        new DefaultAzureCredential(), new CosmosClientOptions
+            //        {
+            //            TokenCredentialBackgroundRefreshInterval = TimeSpan.FromSeconds(5)
+            //        });
+
+        }
 
         // <Main>
         public static async Task Main(string[] args)
         {
             try
             {
+                
                 Console.WriteLine("Beginning operations...\n");
                 Program p = new Program();
+
                 await p.GetStartedDemoAsync();
 
             }
@@ -53,7 +90,7 @@ namespace CosmosTest
             finally
             {
                 Console.WriteLine("End of demo, press any key to exit.");
-                Console.ReadKey();
+                Console.Read();
             }
         }
         // </Main>
@@ -65,13 +102,26 @@ namespace CosmosTest
         public async Task GetStartedDemoAsync()
         {
             // Create a new instance of the Cosmos Client
-            this.cosmosClient = new CosmosClient(EndpointUri, 
-                new DefaultAzureCredential());
-            
-            await this.CreateDatabaseAsync();
-            await this.CreateContainerAsync();
-            await this.AddItemsToContainerAsync();
-            await this.QueryItemsAsync();
+
+
+            //await this.CreateDatabaseAsync();
+            //await this.CreateContainerAsync();
+            //await this.AddItemsToContainerAsync();
+
+            for (var i = 0; i < 100; i++)
+            {
+          //      Thread.Sleep(8 * 60 * 1000);
+                var myClient = this.cache.GetOrAdd("my-cosmos-client", () => new CosmosClient(EndpointUri,
+                    new DefaultAzureCredential(), new CosmosClientOptions
+                    {
+                        TokenCredentialBackgroundRefreshInterval = TimeSpan.FromMinutes(1)
+                    }));
+                this.database = myClient.GetDatabase(databaseId);
+                this.container = database.GetContainer(containerId);
+                await this.QueryItemsAsync();
+            }
+
+
             // await this.ReplaceFamilyItemAsync();
             // await this.DeleteFamilyItemAsync();
             // await this.DeleteDatabaseAndCleanupAsync();
